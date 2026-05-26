@@ -1,0 +1,21 @@
+Memory Model Results
+
+Val R@1: 0.3918
+Val R@5: 0.7010
+Val R@10: 0.8247
+Val MRR: 0.5252Memory Model Results
+
+Val R@1: 0.3918
+Val R@5: 0.7010
+Val R@10: 0.8247
+Val MRR: 0.5252Memory Model Results
+
+Val R@1: 0.3918
+Val R@5: 0.7010
+Val R@10: 0.8247
+Val MRR: 0.5252Memory Model Results
+
+Val R@1: 0.3918
+Val R@5: 0.7010
+Val R@10: 0.8247
+Val MRR: 0.5252

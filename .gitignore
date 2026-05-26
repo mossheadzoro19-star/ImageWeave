@@ -1,0 +1,72 @@
+# Python
+__pycache__/
+
+*.pyc
+.ipynb_checkpoints/
+
+# Environment
+.env
+.env.*
+venv/
+env/
+conda/
+
+# Training artifacts
+logs/
+debug_output/
+artifacts/
+retrieval_outputs/
+
+# Checkpoints
+checkpoints/
+*.pth
+*.pt
+*.ckpt
+
+# Dataset
+dataset/
+*.zip
+*.csv
+
+# Notebook junk
+notebooks/
+
+# OS files
+.DS_Store
+Thumbs.db# Python
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# Environment
+.env
+.env.*
+venv/
+env/
+conda/
+
+# Training artifacts
+logs/
+debug_output/
+artifacts/
+retrieval_outputs/
+
+# Checkpoints
+checkpoints/
+*.pth
+*.pt
+*.ckpt
+
+# Dataset
+dataset/
+*.zip
+*.csv
+
+# Notebook junk
+notebooks/
+
+# OS files
+.DS_Store
+Thumbs.db
+.hf_cache/
+*.log

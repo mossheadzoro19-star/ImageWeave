@@ -1,0 +1,286 @@
+import os
+import sys
+
+import torch
+
+from PIL import Image
+
+from transformers import (
+    CLIPProcessor,
+    AutoTokenizer,
+    AutoModelForCausalLM
+)
+
+# =====================================================
+# FIX IMPORTS
+# =====================================================
+
+CURRENT_DIR = os.path.dirname(
+    os.path.abspath(__file__)
+)
+
+PROJECT_ROOT = os.path.abspath(
+    os.path.join(
+        CURRENT_DIR,
+        ".."
+    )
+)
+
+sys.path.insert(0, PROJECT_ROOT)
+
+from model.imageweave import ImageWeave
+
+# =====================================================
+# CONFIG
+# =====================================================
+
+DEVICE = "cuda"
+
+CHECKPOINT_PATH = (
+    "checkpoints/best_model.pth"
+)
+
+INDEX_PATH = (
+    "inference/retrieval_index.pt"
+)
+
+LLM_NAME = "Qwen/Qwen2.5-1.5B-Instruct"
+
+# =====================================================
+# LOAD IMAGEWEAVE
+# =====================================================
+
+print("
+Loading ImageWeave...
+")
+
+model = ImageWeave().to(DEVICE)
+
+checkpoint = torch.load(
+    CHECKPOINT_PATH,
+    map_location=DEVICE
+)
+
+model.load_state_dict(
+    checkpoint["model_state_dict"]
+)
+
+model.eval()
+
+processor = CLIPProcessor.from_pretrained(
+    "openai/clip-vit-base-patch32"
+)
+
+# =====================================================
+# LOAD INDEX
+# =====================================================
+
+print("Loading retrieval index...
+")
+
+index = torch.load(INDEX_PATH)
+
+database_embeddings = index["embeddings"]
+
+database_texts = index["texts"]
+
+# =====================================================
+# LOAD QWEN
+# =====================================================
+
+print("Loading reasoning model...
+")
+
+tokenizer = AutoTokenizer.from_pretrained(
+    LLM_NAME
+)
+
+llm = AutoModelForCausalLM.from_pretrained(
+    LLM_NAME,
+    torch_dtype=torch.float16,
+    device_map="auto"
+)
+
+# =====================================================
+# QUERY IMAGES
+# =====================================================
+
+query_paths = [
+    "demo/query1.jpg",
+    "demo/query2.jpg",
+    "demo/query3.jpg"
+]
+
+images = []
+
+for path in query_paths:
+
+    image = Image.open(path).convert("RGB")
+
+    images.append(image)
+
+query_inputs = processor(
+    images=images,
+    return_tensors="pt"
+)
+
+query_pixel_values = query_inputs[
+    "pixel_values"
+].unsqueeze(0).to(DEVICE)
+
+# =====================================================
+# MEMORY PLACEHOLDER
+# =====================================================
+
+memory_images = [
+    Image.new("RGB", (224, 224))
+    for _ in range(4)
+]
+
+memory_inputs = processor(
+    images=memory_images,
+    return_tensors="pt"
+)
+
+memory_pixel_values = memory_inputs[
+    "pixel_values"
+].unsqueeze(0).to(DEVICE)
+
+# =====================================================
+# EMBEDDING
+# =====================================================
+
+print("Generating semantic embedding...
+")
+
+with torch.no_grad():
+
+    query_embedding, _ = model(
+        query_pixel_values,
+        memory_pixel_values,
+        [""]
+    )
+
+query_embedding = query_embedding.cpu()
+
+# =====================================================
+# RETRIEVAL
+# =====================================================
+
+print("Retrieving semantic context...
+")
+
+similarities = torch.matmul(
+    query_embedding,
+    database_embeddings.T
+)
+
+values, indices = torch.topk(
+    similarities,
+    k=10
+)
+
+# =====================================================
+# DEDUPLICATION
+# =====================================================
+
+contexts = []
+
+seen = set()
+
+for idx in indices[0]:
+
+    text = database_texts[idx]
+
+    key = text[:100]
+
+    if key not in seen:
+
+        seen.add(key)
+
+        contexts.append(text)
+
+    if len(contexts) >= 3:
+
+        break
+
+# =====================================================
+# SIMPLE SUMMARY
+# =====================================================
+
+summary = " ".join(contexts)
+
+summary = summary[:600]
+
+print("
+==============================")
+print("RETRIEVED CONTEXT")
+print("==============================
+")
+
+print(summary)
+
+# =====================================================
+# INTERACTIVE LOOP
+# =====================================================
+
+print("
+====================================")
+print("IMAGEWEAVE MULTI-IMAGE REASONING")
+print("Type 'exit' to quit")
+print("====================================")
+
+while True:
+
+    question = input("
+Question:
+> ")
+
+    if question.lower() == "exit":
+
+        break
+
+    prompt = f'''
+You are ImageWeave.
+
+You analyze multiple sequential images.
+
+Context:
+{summary}
+
+Question:
+{question}
+
+Answer naturally and concisely.
+'''
+
+    inputs = tokenizer(
+        prompt,
+        return_tensors="pt"
+    ).to(llm.device)
+
+    with torch.no_grad():
+
+        outputs = llm.generate(
+            **inputs,
+            max_new_tokens=80,
+            do_sample=False
+        )
+
+    response = tokenizer.decode(
+        outputs[0],
+        skip_special_tokens=True
+    )
+
+    answer = response.split("Answer naturally and concisely.")[-1]
+
+    print("
+==============================")
+    print("IMAGEWEAVE ANSWER")
+    print("==============================
+")
+
+    print(answer.strip())
+
+print("
+Exiting ImageWeave.")
